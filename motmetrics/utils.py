@@ -12,6 +12,8 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 from motmetrics.distances import iou_matrix, norm2squared_matrix
 from motmetrics.mot import MOTAccumulator
@@ -71,16 +73,14 @@ def compare_to_groundtruth(gt, dt, dist='iou', distfields=None, distth=0.5):
         oids = np.empty(0)
         hids = np.empty(0)
         dists = np.empty((0, 0))
-
-        fgt = fid_to_fgt.get(fid, None)
-        fdt = fid_to_fdt.get(fid, None)
-        if fgt is not None and fdt is not None:
-            oids = fgt.index.get_level_values(1)
-            hids = fdt.index.get_level_values(1)
-            if len(oids) > 0 and len(hids) > 0:
-                # dists = compute_dist(fgt[distfields].values, fdt[distfields].values)
-                dists = compute_dist(fgt.values, fdt.values)
-
+        if fid in fid_to_fgt:
+            fgt = fid_to_fgt[fid]
+            oids = fgt.index.get_level_values('Id')
+        if fid in fid_to_fdt:
+            fdt = fid_to_fdt[fid]
+            hids = fdt.index.get_level_values('Id')
+        if len(oids) > 0 and len(hids) > 0:
+            dists = compute_dist(fgt.values, fdt.values)
         acc.update(oids, hids, dists, frameid=fid)
 
     return acc
@@ -163,3 +163,42 @@ def CLEAR_MOT_M(gt, dt, inifile, dist='iou', distfields=None, distth=0.5, includ
         acc.update(oids, hids, dists, frameid=fid, vf=vflag)
 
     return acc, analysis
+
+
+# Andreu
+def is_in_region(bbox, reg):
+    # Check if the 4 points of the bbox are inside region
+    points = []
+    # Center
+    cx = bbox[0] + (bbox[2] / 2)
+    cy = bbox[1] + (bbox[3] / 2)
+    points.append(Point(cx, cy))
+    # # Top-left
+    # x1 = bbox[0]
+    # y1 = bbox[1]
+    # points.append(Point(x1, y1))
+    # # Top-right
+    # x1 = bbox[0] + bbox[2]
+    # y1 = bbox[1]
+    # points.append(Point(x1, y1))
+    # # Bot-right
+    # x1 = bbox[0] + bbox[2]
+    # y1 = bbox[1] + bbox[3]
+    # points.append(Point(x1, y1))
+    # # Bot-left
+    # x1 = bbox[0]
+    # y1 = bbox[1] + bbox[3]
+    # points.append(Point(x1, y1))
+
+    # Region
+    p_xy0 = (reg[0], reg[1])
+    p_xy1 = (reg[0] + reg[2], reg[1])
+    p_xy2 = (reg[0] + reg[2], reg[1] + reg[3])
+    p_xy3 = (reg[0], reg[1] + reg[3])
+    region = [p_xy0, p_xy1, p_xy2, p_xy3]
+    polygon = Polygon(region)
+
+    flags_inside = [polygon.contains(p) for p in points]
+    flag_inside = all(flags_inside)
+
+    return flag_inside
